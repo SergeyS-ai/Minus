@@ -1113,22 +1113,33 @@ function copyText(t,ok){
   const fb=()=>openSheet(`<h3>Скопируйте вручную</h3><textarea readonly style="min-height:200px">${esc(t)}</textarea><button class="btn ghost" data-act="closesheet">Закрыть</button>`,"Текст");
   try{navigator.clipboard.writeText(t).then(()=>toast(ok),fb)}catch(e){fb()}
 }
-document.addEventListener("click",e=>{const b=e.target.closest("[data-act]");if(!b)return;const f=ACT[b.dataset.act];if(f){if(b.tagName==="A"&&b.getAttribute("href")==="#")e.preventDefault();f(b,e)}});
+document.addEventListener("click",e=>{const b=e.target.closest("[data-act]");if(!b)return;const f=ACT[b.dataset.act];if(f){clearTimeout(rT);if(b.tagName==="A"&&b.getAttribute("href")==="#")e.preventDefault();f(b,e)}});
 document.addEventListener("keydown",e=>{if((e.key===" "||e.key==="Enter")&&e.target.matches('[role="checkbox"][data-act]')){e.preventDefault();e.target.click()}if(e.key==="Escape")closeSheet()});
 // После выхода из поля перерисовываем экран, но возвращаем фокус в поле, куда пользователь уже перешёл
 const fieldSel=a=>a.id?"#"+CSS.escape(a.id):a.dataset.ch?`[data-ch="${a.dataset.ch}"]`+(a.dataset.k?`[data-k="${a.dataset.k}"]`:"")+(a.dataset.st?`[data-st="${a.dataset.st}"]`:""):null;
-let rT;document.addEventListener("change",e=>{const i=e.target.closest("[data-ch]");if(!i||!CH[i.dataset.ch])return;CH[i.dataset.ch](i);save();
-  clearTimeout(rT);rT=setTimeout(()=>{const a=document.activeElement,inField=a&&a.matches?.("input,select,textarea")&&!a.closest("#sheet"),sel=inField?fieldSel(a):null,y=scrollY;
-    if(a&&a.closest?.("#sheet")){renderDaybar();return}
-    render();scrollTo(0,y);if(sel){const n=document.querySelector(sel);if(n){n.focus({preventScroll:true});try{const l=n.value.length;n.setSelectionRange?.(l,l)}catch(_){}}}},0)});
+// Пока палец на экране — не перерисовываем, иначе на iPhone «съедается» нажатие (например, на стакан воды)
+let rT,pDown=false;
+addEventListener("pointerdown",()=>{pDown=true},true);
+addEventListener("pointerup",()=>setTimeout(()=>{pDown=false},0),true);
+addEventListener("pointercancel",()=>{pDown=false},true);
+function laterRender(){clearTimeout(rT);rT=setTimeout(()=>{if(pDown)return laterRender();
+  const a=document.activeElement;if(a&&a.closest?.("#sheet")){renderDaybar();return}
+  const inField=a&&a.matches?.("input,select,textarea"),sel=inField?fieldSel(a):null,y=scrollY;
+  render();scrollTo(0,y);if(sel){const n=document.querySelector(sel);if(n){n.focus({preventScroll:true});try{const l=n.value.length;n.setSelectionRange?.(l,l)}catch(_){}}}},60)}
+document.addEventListener("change",e=>{const i=e.target.closest("[data-ch]");if(!i||!CH[i.dataset.ch])return;CH[i.dataset.ch](i);save();laterRender()});
 let addT;document.addEventListener("input",e=>{
   if(e.target.id==="addq"){clearTimeout(addT);const q=e.target.value;addT=setTimeout(()=>openAdd(q),250);return}
   const i=e.target.closest("[data-ch]");if(i&&CH[i.dataset.ch]){CH[i.dataset.ch](i);save();renderDaybar()}
 });
-// Подстраховка: сохраняем при сворачивании и закрытии
-const flush=()=>{const a=document.activeElement;if(a&&a.matches?.("[data-ch]")&&CH[a.dataset.ch])CH[a.dataset.ch](a);save()};
-document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden")flush()});
+// При сворачивании сохраняем только поле, которое редактируется прямо сейчас.
+// Раньше сохранялось всё состояние — и старая вкладка с той же ссылкой могла затереть свежие данные (воду, отметки).
+const flush=()=>{const a=document.activeElement;if(a&&a.matches?.("[data-ch]")&&CH[a.dataset.ch]){CH[a.dataset.ch](a);save()}};
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden")flush();else reloadState()});
 addEventListener("pagehide",flush);
+addEventListener("pageshow",e=>{if(e.persisted)reloadState()});
+// Синхронизация между вкладками и окном «на экране Домой»: берём самые свежие данные из хранилища
+function reloadState(){const fresh=store.get(KEY,null);if(!fresh||JSON.stringify(fresh)===JSON.stringify(S))return;const a=document.activeElement;if(a&&a.matches?.("input,textarea")&&a.closest("#view"))return;S=fresh;if(!M(S.active))S.active=S.members[0].id;render()}
+addEventListener("storage",e=>{if(e.key===KEY)reloadState()});
 // Просим браузер не удалять данные (Safari, Chrome)
 try{navigator.storage?.persist?.()}catch(e){}
 const STORAGE_OK=(()=>{try{localStorage.setItem("__t","1");localStorage.removeItem("__t");return true}catch(e){return false}})();
