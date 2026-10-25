@@ -137,6 +137,20 @@ td.tot{font-weight:700}
 details summary{cursor:pointer;font:600 13px var(--body);color:var(--blue);list-style:none}
 details summary::-webkit-details-marker{display:none}
 
+
+/* закреплённый итог дня */
+.daybar{background:var(--surface);border-bottom:1px solid var(--line);box-shadow:0 2px 10px rgba(13,23,38,.08)}
+.db{display:flex;align-items:center;gap:12px;width:100%;max-width:680px;margin:0 auto;border:0;background:transparent;color:var(--ink);cursor:pointer;text-align:left;padding-block:7px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));font-family:var(--body)}
+.db:focus-visible{outline:2.5px solid var(--accent);outline-offset:-3px}
+.db-score{flex:0 0 auto;width:36px;height:36px;border-radius:10px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font:italic 900 15px var(--display);transform:skewX(-6deg)}
+.db-k{flex:1.4;min-width:0;display:grid;gap:2px}
+.db-s{flex:1;min-width:0;display:grid;gap:2px}
+.db-l{font:600 9.5px var(--body);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.db b{font:italic 800 15px/1.1 var(--display);white-space:nowrap}
+.db b small{font:500 11px var(--body);color:var(--muted)}
+.db-bar{height:4px;border-radius:2px;background:var(--surface2);overflow:hidden}
+.db-bar i{display:block;height:100%;border-radius:2px}
+@media (max-width:375px){.db{gap:8px}.db-s:last-child{display:none}.db b{font-size:14px}.db-score{width:32px;height:32px;font-size:13px}}
 /* nav */
 nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:9;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px)}
 .tabsin{max-width:680px;margin:0 auto;display:flex}
@@ -283,6 +297,7 @@ ol.steps button.done .sn{background:var(--accent);color:var(--accent-ink)}
     <div class="brand"><i></i><div>Минус<small id="brandSub">Меню на минус</small></div></div>
     <div class="who" id="who" role="group" aria-label="Участник"></div>
   </div>
+  <div id="daybar" class="daybar"></div>
 </header>
 
 <div class="wrap"><main id="view" class="view"></main></div>
@@ -747,6 +762,7 @@ function renderWho(){
 function vToday(){
   const m=ME(),R=dayRes(UI.date,m),t=R.t,l=R.l,row=S.plan[wd(UI.date)],due=dueIn(m.id);
   let h=`<div class="daynav"><button class="iconbtn" data-act="dnav" data-n="-1" aria-label="Предыдущий день">‹</button><strong>${dLabel(UI.date)} · ${DAYS[wd(UI.date)][0]}</strong><button class="iconbtn" data-act="dnav" data-n="1" aria-label="Следующий день">›</button></div><div class="stack" style="margin-top:12px">`;
+  if(!STORAGE_OK)h+=`<div class="banner" style="background:color-mix(in srgb,var(--bad) 16%,transparent)"><div class="num" style="color:var(--bad)">!</div><div style="flex:1"><b>Данные не сохраняются</b><div class="small muted">Браузер запретил хранение: обычно это частный режим (инкогнито) или запрет данных сайтов. Откройте ссылку в обычной вкладке Safari или Chrome.</div></div></div>`;
   if(due<=0)h+=`<div class="banner"><div class="num">!</div><div style="flex:1"><b>Пора взвеситься</b><div class="small muted">Раз в неделю пересчитываем норму и порции.</div></div><button class="btn go sm" data-act="checkin">Внести</button></div>`;
   const bal=R.bal;
   h+=`<section class="hero"><div class="between" style="align-items:flex-start"><div><div class="eyebrow">Итог дня · ${esc(m.name)}</div><div style="font:italic 800 22px var(--display);text-transform:uppercase;margin-top:2px">${R.score>=90?"Чемпионский день":R.score>=60?"Хороший темп":R.score>0?"В процессе":"День впереди"}</div></div><div class="score" aria-label="Итог дня ${R.score} из 100">${R.score}</div></div>
@@ -1002,8 +1018,19 @@ function openCheckin(){
 }
 
 // ===== Рендер
+// Закреплённая панель «Итог дня» под шапкой — видна при прокрутке на любой вкладке
+function renderDaybar(){
+  const el=$("#daybar");if(!el)return;
+  const m=ME(),date=UI.view==="today"?UI.date:TODAY,R=dayRes(date,m),t=R.t,over=R.eaten>t.kcal*1.05;
+  el.innerHTML=`<button class="db" data-act="nav" data-v="today" aria-label="Итог дня ${dLabel(date)}: ${fmt(R.eaten)} из ${fmt(t.kcal)} ккал, шаги ${fmt(R.l.steps||0)}, оценка ${R.score}">
+   <span class="db-score">${R.score}</span>
+   <span class="db-k"><span class="db-l">${date===TODAY?"Сегодня":dShort(date)} · ккал</span><b>${fmt(R.eaten)}<small>/${fmt(t.kcal)}</small></b><span class="db-bar"><i style="width:${Math.min(100,R.eaten/t.kcal*100)}%;background:${over?"var(--bad)":"var(--accent)"}"></i></span></span>
+   <span class="db-s"><span class="db-l">Шаги</span><b>${fmt(R.l.steps||0)}</b></span>
+   <span class="db-s"><span class="db-l">${R.bal<=0?"Дефицит":"Профицит"}</span><b style="color:${R.bal<=0?"var(--good)":"var(--bad)"}">${fmt(Math.abs(R.bal))}</b></span>
+   <span class="db-s"><span class="db-l">Еда</span><b>${R.done}/${R.planned}</b></span></button>`;
+}
 function render(){
-  renderWho();
+  renderWho();renderDaybar();
   document.querySelectorAll(".tab").forEach(t=>{t.setAttribute("aria-selected",t.dataset.v===UI.view);t.querySelector(".dot")?.remove();if(t.dataset.v==="family"&&dueMembers().length)t.insertAdjacentHTML("beforeend",'<span class="dot"></span>')});
   $("#view").innerHTML={today:vToday,menu:vMenu,food:vFood,sport:vSport,family:vFamily}[UI.view]();
 }
@@ -1073,12 +1100,14 @@ const ACT={
   resetall:b=>{if(!b.dataset.sure){b.dataset.sure=1;b.textContent="Точно сбросить всё?";b.classList.add("go");return}S=defaults();save();render();toast("Данные сброшены")},
   closesheet:()=>closeSheet()
 };
+// Значение сохраняется на каждый ввод символа (iPhone не шлёт change, если закрыть приложение, не убрав клавиатуру).
+// Полная перерисовка — только после выхода из поля.
 const CH={
-  steps:i=>{L().steps=Math.max(0,r(num(i.value)||0));save();render()},
-  extra:i=>{L().extra=Math.max(0,r(num(i.value)||0));save();render()},
-  pg:i=>{const k=i.dataset.k,v=num(i.value)||0,pc=P(k)[8];S.pantry[k]={on:v>0,g:pc?v*pc:v};save();UI.calc=null;render()},
-  price:i=>{const v=num(i.value);if(v==null)delete S.prices[i.dataset.k];else S.prices[i.dataset.k]=v;save();render()},
-  smul:i=>{S.storeMul[i.dataset.st]=num(i.value)||0;save();render()}
+  steps:i=>{L().steps=Math.max(0,r(num(i.value)||0))},
+  extra:i=>{L().extra=Math.max(0,r(num(i.value)||0))},
+  pg:i=>{const k=i.dataset.k,v=num(i.value)||0,pc=P(k)[8];S.pantry[k]={on:v>0,g:pc?v*pc:v};UI.calc=null},
+  price:i=>{const v=num(i.value);if(v==null)delete S.prices[i.dataset.k];else S.prices[i.dataset.k]=v},
+  smul:i=>{S.storeMul[i.dataset.st]=num(i.value)||0}
 };
 function copyText(t,ok){
   const fb=()=>openSheet(`<h3>Скопируйте вручную</h3><textarea readonly style="min-height:200px">${esc(t)}</textarea><button class="btn ghost" data-act="closesheet">Закрыть</button>`,"Текст");
@@ -1086,8 +1115,23 @@ function copyText(t,ok){
 }
 document.addEventListener("click",e=>{const b=e.target.closest("[data-act]");if(!b)return;const f=ACT[b.dataset.act];if(f){if(b.tagName==="A"&&b.getAttribute("href")==="#")e.preventDefault();f(b,e)}});
 document.addEventListener("keydown",e=>{if((e.key===" "||e.key==="Enter")&&e.target.matches('[role="checkbox"][data-act]')){e.preventDefault();e.target.click()}if(e.key==="Escape")closeSheet()});
-document.addEventListener("change",e=>{const i=e.target.closest("[data-ch]");if(i&&CH[i.dataset.ch])CH[i.dataset.ch](i)});
-let addT;document.addEventListener("input",e=>{if(e.target.id==="addq"){clearTimeout(addT);const q=e.target.value;addT=setTimeout(()=>openAdd(q),250)}});
+// После выхода из поля перерисовываем экран, но возвращаем фокус в поле, куда пользователь уже перешёл
+const fieldSel=a=>a.id?"#"+CSS.escape(a.id):a.dataset.ch?`[data-ch="${a.dataset.ch}"]`+(a.dataset.k?`[data-k="${a.dataset.k}"]`:"")+(a.dataset.st?`[data-st="${a.dataset.st}"]`:""):null;
+let rT;document.addEventListener("change",e=>{const i=e.target.closest("[data-ch]");if(!i||!CH[i.dataset.ch])return;CH[i.dataset.ch](i);save();
+  clearTimeout(rT);rT=setTimeout(()=>{const a=document.activeElement,inField=a&&a.matches?.("input,select,textarea")&&!a.closest("#sheet"),sel=inField?fieldSel(a):null,y=scrollY;
+    if(a&&a.closest?.("#sheet")){renderDaybar();return}
+    render();scrollTo(0,y);if(sel){const n=document.querySelector(sel);if(n){n.focus({preventScroll:true});try{const l=n.value.length;n.setSelectionRange?.(l,l)}catch(_){}}}},0)});
+let addT;document.addEventListener("input",e=>{
+  if(e.target.id==="addq"){clearTimeout(addT);const q=e.target.value;addT=setTimeout(()=>openAdd(q),250);return}
+  const i=e.target.closest("[data-ch]");if(i&&CH[i.dataset.ch]){CH[i.dataset.ch](i);save();renderDaybar()}
+});
+// Подстраховка: сохраняем при сворачивании и закрытии
+const flush=()=>{const a=document.activeElement;if(a&&a.matches?.("[data-ch]")&&CH[a.dataset.ch])CH[a.dataset.ch](a);save()};
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden")flush()});
+addEventListener("pagehide",flush);
+// Просим браузер не удалять данные (Safari, Chrome)
+try{navigator.storage?.persist?.()}catch(e){}
+const STORAGE_OK=(()=>{try{localStorage.setItem("__t","1");localStorage.removeItem("__t");return true}catch(e){return false}})();
 
 // ===== Старт
 render();
